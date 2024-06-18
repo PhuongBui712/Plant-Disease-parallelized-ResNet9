@@ -24,6 +24,7 @@ class XGBoost:
             self.trees.append(tree)
 
     def predict(self, X):
+        # TODO: Trung
         F_m = np.full(X.shape[0], self.y_mean)
         for tree in self.trees:
             F_m += self.learning_rate * tree.predict(X)

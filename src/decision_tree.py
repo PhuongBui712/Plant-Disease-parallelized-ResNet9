@@ -77,6 +77,7 @@ class DecisionTree:
         return Node(best_feat, best_thresh, left, right)
 
     def _best_split(self, X, y, feat_idxs):
+        # TODO: Hiệp
         best_gain = -1
         split_idx, split_thresh = None, None
 
