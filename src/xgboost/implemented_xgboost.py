@@ -1,5 +1,5 @@
 import numpy as np
-from decision_tree import DecisionTree
+from xgboost.decision_tree import DecisionTree
 
 
 class XGBoost:
