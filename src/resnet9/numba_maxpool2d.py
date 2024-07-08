@@ -1,0 +1,142 @@
+import math
+from numba import cuda
+
+import torch
+from torch import nn
+
+
+MIN_FLOAT32 = torch.finfo(torch.float32).min
+
+@cuda.jit
+def max_pool_2d_kernel(input, output, kernel_size, padding, stride):
+    batch_idx, out_h, out_w = cuda.grid(3)
+    if batch_idx < input.shape[0] and out_h < input.shape[2] and out_w < input.shape[3]:
+        for c in range(input.shape[1]):
+            for ky in range(kernel_size):
+                for kx in range(kernel_size):
+                    in_y = out_h * stride - padding + ky
+                    in_x = out_w * stride - padding +kx
+                    
+                    if 0 <= in_y < input.shape[2] and 0 <= in_x < input.shape[3]:
+                        output[batch_idx, c, out_h, out_w] = max(output[batch_idx, c, out_h, out_w],
+                                                                 input[batch_idx, c, in_y, in_x])
+                                                                 
+
+
+class NumbaMaxPool2d(nn.Module):
+    def __init__(self, kernel_size, padding=0, stride=1):
+        super().__init__()
+
+        self.kernel_size = kernel_size
+        self.padding = padding
+        self.stride = stride
+
+    def forward(self, x):
+        assert x.is_cuda, "Input must be a CUDA tensor"
+        assert x.dim() == 4, "Input must be a 4D tensor"
+
+        x_detached = x.detach()
+
+        batch_size, channels, in_height, in_width = x.shape
+        out_height = (in_height + 2 * self.padding - (self.kernel_size - 1) - 1) // self.stride + 1
+        out_width = (in_width + 2 * self.padding - (self.kernel_size - 1) - 1) // self.stride + 1
+
+        output = torch.full(
+            size=(batch_size, channels, out_height, out_width),
+            fill_value=MIN_FLOAT32
+        ).cuda()
+        
+        threads_per_block = (8, 8, 8)
+        blocks_per_grid = (
+            math.ceil(batch_size / threads_per_block[0]),
+            math.ceil(out_height / threads_per_block[1]),
+            math.ceil(out_width / threads_per_block[2])
+        )
+
+        max_pool_2d_kernel[blocks_per_grid, threads_per_block](
+            x_detached, output, self.kernel_size, self.padding, self.stride
+        )
+
+        return output
+    
+
+@cuda.jit
+def _maxpool2d_kernel_2(input, output, kernel_size, stride, in_height, in_width, out_height, out_width, min_val):
+    # Calculate indices
+    idx = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
+    idy = cuda.threadIdx.y + cuda.blockIdx.y * cuda.blockDim.y
+    idz = cuda.threadIdx.z + cuda.blockIdx.z * cuda.blockDim.z
+
+    # Map to 4D indices
+    batch = idx // input.shape[1]
+    channel = idx % input.shape[1]
+    x = idy
+    y = idz
+
+    if batch < input.shape[0] and channel < input.shape[1] and x < out_height and y < out_width:
+        max_val = min_val
+        for i in range(kernel_size):
+            for j in range(kernel_size):
+                in_x = x * stride + i
+                in_y = y * stride + j
+                if in_x < in_height and in_y < in_width:
+                    val = input[batch, channel, in_x, in_y]
+                    if val > max_val:
+                        max_val = val
+        output[batch, channel, x, y] = max_val
+
+class NumbaMaxPool2d_2(torch.nn.Module):
+    def __init__(self, kernel_size, stride=None):
+        super(NumbaMaxPool2d, self).__init__()
+        self.kernel_size = kernel_size
+        self.stride = stride if stride is not None else kernel_size
+
+    def forward(self, x):
+        if not x.is_cuda:
+            x = x.cuda()
+        
+        # Ensure input is float32
+        x = x.float()
+        
+        input_shape = x.shape
+        output_shape = (
+            input_shape[0],  # batch size
+            input_shape[1],  # channels
+            (input_shape[2] - self.kernel_size) // self.stride + 1,  # height
+            (input_shape[3] - self.kernel_size) // self.stride + 1   # width
+        )
+        
+        output = torch.cuda.FloatTensor(*output_shape).fill_(MIN_FLOAT32)
+        
+        threads_per_block = (8, 8, 8)
+        blocks_per_grid = (
+            (input_shape[0] * input_shape[1] + threads_per_block[0] - 1) // threads_per_block[0],
+            (output_shape[2] + threads_per_block[1] - 1) // threads_per_block[1],
+            (output_shape[3] + threads_per_block[2] - 1) // threads_per_block[2]
+        )
+        
+        _maxpool2d_kernel_2[blocks_per_grid, threads_per_block](
+            x,
+            output,
+            self.kernel_size,
+            self.stride,
+            input_shape[2],  # in_height
+            input_shape[3],  # in_width
+            output_shape[2],  # out_height
+            output_shape[3],  # out_width
+            MIN_FLOAT32  # Pass the minimum value as an argument
+        )
+        
+        return output
+    
+
+if __name__ == '__main__':
+    input = torch.randn(1, 3, 256, 256, device='cuda')
+
+    torch_max_pooling = nn.MaxPool2d(kernel_size=3, stride=2).cuda()
+    torch_output = torch_max_pooling(input)
+
+    numba_max_pooling = NumbaMaxPool2d(kernel_size=3, stride=2).cuda()
+    numba_output = numba_max_pooling(input)
+
+    assert ((torch_output - numba_output) < 1e-6).all().item(), "Numba MaxPool2D output does not match PyTorch MaxPool2D output"

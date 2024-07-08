@@ -80,4 +80,4 @@ if __name__ == '__main__':
                              weight=torch_conv.weight, bias=torch_conv.bias).to(device)
     numba_output = numba_conv(input_tensor)
 
-    assert ((torch_output - numba_output) < 1e-6).all().item()
+    assert ((torch_output - numba_output) < 1e-6).all().item(), "Numba Conv2D output does not match PyTorch Conv2D output"
