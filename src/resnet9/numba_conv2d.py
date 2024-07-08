@@ -73,10 +73,11 @@ if __name__ == '__main__':
     
     input_tensor = torch.randn(16, 3, 512, 512, device=device, requires_grad=True)
 
-    numba_conv = NumbaConv2D(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2).to(device)
-    numba_output = numba_conv(input_tensor)
-
-    torch_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2).to(device)
+    torch_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,).to(device)
     torch_output = torch_conv(input_tensor)
+
+    numba_conv = NumbaConv2D(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,
+                             weight=torch_conv.weight, bias=torch_conv.bias).to(device)
+    numba_output = numba_conv(input_tensor)
 
     assert ((torch_output - numba_output) < 1e-6).all().item()
