@@ -1,5 +1,6 @@
 import math
 from numba import cuda
+from typing import Optional
 
 import torch
 from torch import nn
@@ -8,7 +9,21 @@ from torch import nn
 MIN_FLOAT32 = torch.finfo(torch.float32).min
 
 @cuda.jit
-def max_pool_2d_kernel(input, output, kernel_size, padding, stride):
+def max_pool_2d_kernel(input: cuda.devicearray.DeviceNDArray,
+                       output: cuda.devicearray.DeviceNDArray,
+                       kernel_size: int,
+                       padding: int,
+                       stride: int):
+    """
+    Performs a 2D max pooling operation on a 4D tensor.
+
+    Args:
+        input (cuda.devicearray.DeviceNDArray): The input tensor.
+        output (cuda.devicearray.DeviceNDArray): The output tensor.
+        kernel_size (int): The size of the pooling kernel.
+        padding (int): The amount of padding to apply.
+        stride (int): The stride of the pooling operation.
+    """
     batch_idx, out_h, out_w = cuda.grid(3)
     if batch_idx < input.shape[0] and out_h < input.shape[2] and out_w < input.shape[3]:
         for c in range(input.shape[1]):
@@ -20,11 +35,29 @@ def max_pool_2d_kernel(input, output, kernel_size, padding, stride):
                     if 0 <= in_y < input.shape[2] and 0 <= in_x < input.shape[3]:
                         output[batch_idx, c, out_h, out_w] = max(output[batch_idx, c, out_h, out_w],
                                                                  input[batch_idx, c, in_y, in_x])
-                                                                 
 
 
 class NumbaMaxPool2d(nn.Module):
-    def __init__(self, kernel_size, padding=0, stride=1):
+    """
+    Performs a 2D max pooling operation on a 4D tensor using Numba CUDA.
+
+    This class implements a max pooling operation with configurable kernel size, padding, and stride.
+    It leverages Numba CUDA for efficient GPU acceleration.
+
+    Args:
+        kernel_size (int): The size of the pooling kernel.
+        padding (Optional[int], optional): The amount of padding to apply. Defaults to 0.
+        stride (Optional[int], optional): The stride of the pooling operation. Defaults to 1.
+
+    Example:
+        >>> pool = NumbaMaxPool2d(kernel_size=2, padding=1, stride=2)
+        >>> input_tensor = torch.randn(16, 3, 512, 512, device='cuda')
+        >>> output_tensor = pool(input_tensor)
+    """
+    def __init__(self,
+                 kernel_size: int,
+                 padding: Optional[int] = 0,
+                 stride: Optional[int] = 1):
         super().__init__()
 
         self.kernel_size = kernel_size

@@ -1,13 +1,28 @@
 import math
-import numpy as np
 from numba import cuda
+from typing import Optional
 
 import torch
+from torch import Tensor
 from torch import nn
 
 
 @cuda.jit
-def conv2d_kernel(input, kernel, output, padding, stride):
+def conv2d_kernel(input: cuda.devicearray.DeviceNDArray,
+                  kernel: cuda.devicearray.DeviceNDArray,
+                  output: cuda.devicearray.DeviceNDArray,
+                  padding: int,
+                  stride: int):
+    """
+    Performs a 2D convolution operation on a 4D tensor.
+
+    Args:
+        input (cuda.devicearray.DeviceNDArray): The input tensor.
+        kernel (cuda.devicearray.DeviceNDArray): The convolution kernel.
+        output (cuda.devicearray.DeviceNDArray): The output tensor.
+        padding (int): The amount of padding to apply.
+        stride (int): The stride of the convolution operation.
+    """
     batch_idx, out_y, out_x = cuda.grid(3)
     if batch_idx < input.shape[0] and out_y < output.shape[2] and out_x < output.shape[3]:
         for out_channel in range(output.shape[1]):
@@ -24,7 +39,33 @@ def conv2d_kernel(input, kernel, output, padding, stride):
 
 
 class NumbaConv2D(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, padding=0, stride=1, weight=None, bias=None):
+    """
+    Performs a 2D convolution operation on a 4D tensor using Numba CUDA.
+
+    This class implements a convolution operation with configurable input and output channels, kernel size, padding, and stride.
+    It leverages Numba CUDA for efficient GPU acceleration.
+
+    Args:
+        in_channels (int): The number of input channels.
+        out_channels (int): The number of output channels.
+        kernel_size (int): The size of the convolution kernel.
+        padding (Optional[int], optional): The amount of padding to apply. Defaults to 0.
+        stride (Optional[int], optional): The stride of the convolution operation. Defaults to 1.
+        weight (Optional[torch.Tensor], optional): The initial weight tensor. Defaults to None.
+        bias (Optional[torch.Tensor], optional): The initial bias tensor. Defaults to None.
+
+    Example:
+        >>> conv = NumbaConv2D(in_channels=3, out_channels=64, kernel_size=3, padding=1, stride=2)
+        >>> input_tensor = torch.randn(16, 3, 512, 512, device='cuda')
+        >>> output_tensor = conv(input_tensor)
+    """
+    def __init__(self, in_channels: int,
+                 out_channels: int,
+                 kernel_size: int,
+                 padding: int = 0,
+                 stride: int = 1,
+                 weight: Optional[Tensor] = None,
+                 bias: Optional[Tensor] = None):
         super().__init__()
 
         self.kernel = weight

@@ -1,1 +1,1 @@
-# Plant-Disease-parallelized-XGBoost
+# Plant-Disease-parallelized-ResNet9
