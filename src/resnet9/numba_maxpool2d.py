@@ -24,17 +24,20 @@ def max_pool_2d_kernel(input: cuda.devicearray.DeviceNDArray,
         padding (int): The amount of padding to apply.
         stride (int): The stride of the pooling operation.
     """
-    batch_idx, out_h, out_w = cuda.grid(3)
-    if batch_idx < input.shape[0] and out_h < input.shape[2] and out_w < input.shape[3]:
-        for c in range(input.shape[1]):
-            for ky in range(kernel_size):
-                for kx in range(kernel_size):
-                    in_y = out_h * stride - padding + ky
-                    in_x = out_w * stride - padding +kx
-                    
-                    if 0 <= in_y < input.shape[2] and 0 <= in_x < input.shape[3]:
-                        output[batch_idx, c, out_h, out_w] = max(output[batch_idx, c, out_h, out_w],
-                                                                 input[batch_idx, c, in_y, in_x])
+    idx, out_h, out_w = cuda.grid(3)
+    
+    batch_idx = idx // input.shape[1]
+    channel = idx % input.shape[1]
+    
+    if batch_idx < input.shape[0] and channel < input.shape[1] and out_h < input.shape[2] and out_w < input.shape[3]:
+        for ky in range(kernel_size):
+            for kx in range(kernel_size):
+                in_y = out_h * stride - padding + ky
+                in_x = out_w * stride - padding +kx
+
+                if 0 <= in_y < input.shape[2] and 0 <= in_x < input.shape[3]:
+                    output[batch_idx, channel, out_h, out_w] = max(output[batch_idx, channel, out_h, out_w],
+                                                                   input[batch_idx, channel, in_y, in_x])
 
 
 class NumbaMaxPool2d(nn.Module):
@@ -81,7 +84,7 @@ class NumbaMaxPool2d(nn.Module):
         
         threads_per_block = (8, 8, 8)
         blocks_per_grid = (
-            math.ceil(batch_size / threads_per_block[0]),
+            math.ceil(batch_size * channels / threads_per_block[0]),
             math.ceil(out_height / threads_per_block[1]),
             math.ceil(out_width / threads_per_block[2])
         )
@@ -141,7 +144,7 @@ class NumbaMaxPool2d_2(torch.nn.Module):
         
         output = torch.cuda.FloatTensor(*output_shape).fill_(MIN_FLOAT32)
         
-        threads_per_block = (8, 8, 8)
+        threads_per_block = (64, 64, 64)
         blocks_per_grid = (
             (input_shape[0] * input_shape[1] + threads_per_block[0] - 1) // threads_per_block[0],
             (output_shape[2] + threads_per_block[1] - 1) // threads_per_block[1],
