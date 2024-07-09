@@ -65,7 +65,7 @@ class NumbaMaxPool2d(nn.Module):
 
         self.kernel_size = kernel_size
         self.padding = padding
-        self.stride = stride
+        self.stride = stride or kernel_size
 
     def forward(self, x):
         assert x.is_cuda, "Input must be a CUDA tensor"

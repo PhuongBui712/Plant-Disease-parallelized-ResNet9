@@ -43,7 +43,7 @@ def conv2d_kernel(input: cuda.devicearray.DeviceNDArray,
         output[batch_idx, out_channel_idx, out_y, out_x] = res
 
 
-class NumbaConv2D(torch.nn.Module):
+class NumbaConv2d(torch.nn.Module):
     """
     Performs a 2D convolution operation on a 4D tensor using Numba CUDA.
 
@@ -117,7 +117,7 @@ if __name__ == '__main__':
     torch_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,).to(device)
     torch_output = torch_conv(input_tensor)
 
-    numba_conv = NumbaConv2D(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,
+    numba_conv = NumbaConv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,
                              weight=torch_conv.weight, bias=torch_conv.bias).to(device)
     numba_output = numba_conv(input_tensor)
 
