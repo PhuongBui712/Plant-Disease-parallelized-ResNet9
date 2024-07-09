@@ -71,7 +71,7 @@ class NumbaMaxPool2d(nn.Module):
         assert x.is_cuda, "Input must be a CUDA tensor"
         assert x.dim() == 4, "Input must be a 4D tensor"
 
-        x_detached = x.detach()
+        detached_x = x.detach()
 
         batch_size, channels, in_height, in_width = x.shape
         out_height = (in_height + 2 * self.padding - (self.kernel_size - 1) - 1) // self.stride + 1
@@ -79,8 +79,9 @@ class NumbaMaxPool2d(nn.Module):
 
         output = torch.full(
             size=(batch_size, channels, out_height, out_width),
-            fill_value=MIN_FLOAT32
-        ).cuda()
+            fill_value=MIN_FLOAT32,
+            device=x.device
+        )
         
         threads_per_block = (8, 8, 8)
         blocks_per_grid = (
@@ -90,7 +91,7 @@ class NumbaMaxPool2d(nn.Module):
         )
 
         max_pool_2d_kernel[blocks_per_grid, threads_per_block](
-            x_detached, output, self.kernel_size, self.padding, self.stride
+            detached_x, output, self.kernel_size, self.padding, self.stride
         )
 
         return output

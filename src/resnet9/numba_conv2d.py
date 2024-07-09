@@ -23,21 +23,24 @@ def conv2d_kernel(input: cuda.devicearray.DeviceNDArray,
         padding (int): The amount of padding to apply.
         stride (int): The stride of the convolution operation.
     """
-    idx, out_y, out_x = cuda.grid(3)
-    
-    batch = idx // output.shape[1]
-    out_channel = idx % output.shape[1]
-    
-    if batch < input.shape[0] and out_channel < kernel.shape[0] and out_y < output.shape[2] and out_x < output.shape[3]:
+    combined_idx, out_y, out_x = cuda.grid(3)
+    batch_size, in_channels, in_height, in_width = input.shape
+    out_channels, _, kernel_height, kernel_width = kernel.shape
+    out_height, out_width = output.shape[2:]
+
+    batch_idx = combined_idx // out_channels
+    out_channel_idx = combined_idx % out_channels
+
+    if batch_idx < batch_size and out_channel_idx < out_channels and out_y < out_height and out_x < out_width:
         res = 0.0
-        for in_channel in range(input.shape[1]):
-            for ky in range(kernel.shape[2]):
-                for kx in range(kernel.shape[3]):
+        for in_channel in range(in_channels):
+            for ky in range(kernel_height):
+                for kx in range(kernel_width):
                     in_y = out_y * stride - padding + ky
                     in_x = out_x * stride - padding + kx
-                    if 0 <= in_y < input.shape[2] and 0 <= in_x < input.shape[3]:
-                        res += float(input[batch, in_channel, in_y, in_x]) * float(kernel[out_channel, in_channel, ky, kx])
-        output[batch, out_channel, out_y, out_x] = res
+                    if 0 <= in_y < in_height and 0 <= in_x < in_width:
+                        res += input[batch_idx, in_channel, in_y, in_x] * kernel[out_channel_idx, in_channel, ky, kx]
+        output[batch_idx, out_channel_idx, out_y, out_x] = res
 
 
 class NumbaConv2D(torch.nn.Module):
@@ -61,22 +64,16 @@ class NumbaConv2D(torch.nn.Module):
         >>> input_tensor = torch.randn(16, 3, 512, 512, device='cuda')
         >>> output_tensor = conv(input_tensor)
     """
-    def __init__(self, in_channels: int,
-                 out_channels: int,
-                 kernel_size: int,
-                 padding: int = 0,
-                 stride: int = 1,
-                 weight: Optional[Tensor] = None,
-                 bias: Optional[Tensor] = None):
+    def __init__(self, in_channels, out_channels, kernel_size, padding=0, stride=1, weight=None, bias=None):
         super().__init__()
 
         self.kernel = weight
         if self.kernel is None:
-            self.kernel = torch.nn.Parameter(torch.randn(out_channels, in_channels, kernel_size, kernel_size))
+            self.kernel = nn.Parameter(torch.randn(out_channels, in_channels, kernel_size, kernel_size, device='cuda'))
 
         self.bias = bias
         if self.bias is None:
-            self.bias = torch.nn.Parameter(torch.zeros(out_channels))
+            self.bias = nn.Parameter(torch.zeros(out_channels, device='cuda'))
 
         self.padding = padding
         self.stride = stride
@@ -90,9 +87,9 @@ class NumbaConv2D(torch.nn.Module):
         detached_kernel = self.kernel.detach()
 
         batch_size, in_channels, in_height, in_width = x.shape
-        out_channels, _, kernel_size, _ = self.kernel.shape
-        out_height = (in_height + 2 * self.padding - kernel_size) // self.stride + 1
-        out_width = (in_width + 2 * self.padding - kernel_size) // self.stride + 1
+        out_channels, _, kernel_height, kernel_width = self.kernel.shape
+        out_height = (in_height + 2 * self.padding - kernel_height) // self.stride + 1
+        out_width = (in_width + 2 * self.padding - kernel_width) // self.stride + 1
 
         output = torch.zeros(batch_size, out_channels, out_height, out_width,
                              dtype=torch.float32, device=x.device)
