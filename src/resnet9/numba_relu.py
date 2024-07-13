@@ -57,3 +57,17 @@ class NumbaReLU(nn.Module):
 
         output = output.view(x.shape)
         return output
+    
+
+if __name__ == '__main__':
+    numba_relu = NumbaReLU().cuda()
+    torch_relu = nn.ReLU().cuda()
+    
+    input_tensor1 = torch.randint(0, 256, (16, 3, 256, 256), dtype=torch.float32).cuda()
+
+    numba_output = numba_relu(input_tensor1)
+    torch_output = torch_relu(input_tensor1)
+
+    print(
+        ((numba_output - torch_output) < 1e-6).all(),
+    )
