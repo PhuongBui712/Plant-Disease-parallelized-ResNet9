@@ -113,14 +113,14 @@ class NumbaBatchNorm2d(nn.Module):
     
 
 if __name__ == '__main__':
-    numba_batchnorm = NumbaBatchNorm2d().cuda()
-    torch_batchnorm = nn.BatchNorm2d().cuda()
-    
+    numba_batchnorm = NumbaBatchNorm2d(3).cuda()
+    torch_batchnorm = nn.BatchNorm2d(3).cuda()
+
     input_tensor1 = torch.randint(0, 256, (16, 3, 256, 256), dtype=torch.float32).cuda()
     input_tensor2 = torch.randint(0, 256, (16, 3, 256, 256), dtype=torch.float32).cuda()
 
     numba_output = numba_batchnorm(input_tensor1)
-    torch_output = torch_batchnorm(input_tensor2)
+    numba_output = numba_batchnorm(input_tensor2)
     torch_output = torch_batchnorm(input_tensor1)
     torch_output = torch_batchnorm(input_tensor2)
 
