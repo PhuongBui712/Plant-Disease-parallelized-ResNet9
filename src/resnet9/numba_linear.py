@@ -4,20 +4,20 @@ from numba import cuda, float32
 import torch
 from torch import nn
 
-TPB = 16
+TPB = 32
 
 @cuda.jit
-def linear_kernel(input: cuda.device_array.DeviceNDArray,
-                  output: cuda.device_array.DeviceNDArray,
-                  weight: cuda.device_array.DeviceNDArray):
+def linear_kernel(input, output, weight):
     """
-    Performs a matrix multiplication between two matrices using shared memory.
+    Performs a matrix multiplication between an input matrix and a weight matrix using shared memory.
 
     Args:
-        input (cuda.device_array.DeviceNDArray): The input matrix.
-        output (cuda.device_array.DeviceNDArray): The output matrix.
-        weight (cuda.device_array.DeviceNDArray): The weight matrix.
+        input: The input matrix.
+        output: The output matrix.
+        weight: The weight matrix.
     """
+    # Define an array in the shared memory
+    # The size and type of the arrays must be known at compile time
     sA = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
     sB = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
 
@@ -34,10 +34,10 @@ def linear_kernel(input: cuda.device_array.DeviceNDArray,
         # Preload data into shared memory
         sA[ty, tx] = 0
         sB[ty, tx] = 0
-        if y < input.shape[0] and (tx + i * TPB) < input.shape[1]:
-            sA[ty, tx] = input[y, tx + i * TPB]
-        if x < weight.shape[1] and (ty + i * TPB) < weight.shape[0]:
-            sB[ty, tx] = weight[ty + i * TPB, x]
+        if y < input.shape[0] and (tx+i*TPB) < input.shape[1]:
+          sA[ty, tx] = input[y, tx + i * TPB]
+        if x < weight.shape[1] and (ty+i*TPB) < weight.shape[0]:
+          sB[ty, tx] = weight[ty + i * TPB, x]
 
         # Wait until all threads finish preloading
         cuda.syncthreads()
@@ -99,13 +99,15 @@ class NumbaLinear(nn.Module):
         output = torch.empty(detached_x.size(0), self.weight.shape[0], device=x.device)
         
         threads_per_block = (TPB, TPB)
-        blocks_per_grid = (
-            math.ceil(output.size(0) / TPB),
-            math.ceil(output.size(1) / TPB)
-        )
+        grid_y_max = max(detached_x.shape[0], self.weight.shape[0])
+        grid_x_max = max(detached_x.shape[1], self.weight.shape[1])
 
+        blocks_per_grid_x = math.ceil(grid_x_max / threads_per_block[0])
+        blocks_per_grid_y = math.ceil(grid_y_max / threads_per_block[1])
+
+        blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
         linear_kernel[blocks_per_grid, threads_per_block](
-            detached_x, self.weight.detach().T, output
+            detached_x, output, self.weight.detach().T
         )
 
         if self.bias is not None:
