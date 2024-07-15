@@ -7,13 +7,13 @@ from torch import nn
 
 
 @cuda.jit
-def relu_kernel(input: cuda.devicearray.DeviceNDArray, output: cuda.devicearray.DeviceNDArray, dim: int):
+def relu_kernel(input, output, dim: int):
     """
     Applies ReLU activation to a CUDA array.
 
     Args:
-        input (cuda.devicearray.DeviceNDArray): The input CUDA array.
-        output (cuda.devicearray.DeviceNDArray): The output CUDA array.
+        input: The input CUDA array.
+        output: The output CUDA array.
         dim (int): The total number of elements in the input and output arrays.
     """
     idx = cuda.grid(1)

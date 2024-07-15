@@ -9,17 +9,13 @@ from torch import nn
 MIN_FLOAT32 = torch.finfo(torch.float32).min
 
 @cuda.jit
-def max_pool_2d_kernel(input: cuda.devicearray.DeviceNDArray,
-                       output: cuda.devicearray.DeviceNDArray,
-                       kernel_size: int,
-                       padding: int,
-                       stride: int):
+def max_pool_2d_kernel(input, output, kernel_size: int, padding: int, stride: int):
     """
     Performs a 2D max pooling operation on a 4D tensor.
 
     Args:
-        input (cuda.devicearray.DeviceNDArray): The input tensor.
-        output (cuda.devicearray.DeviceNDArray): The output tensor.
+        input: The input tensor.
+        output: The output tensor.
         kernel_size (int): The size of the pooling kernel.
         padding (int): The amount of padding to apply.
         stride (int): The stride of the pooling operation.

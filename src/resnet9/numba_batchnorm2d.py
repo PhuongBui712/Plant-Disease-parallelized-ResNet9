@@ -7,24 +7,18 @@ from torch import nn
 
 # TODO: Parallelize mean and var function
 @cuda.jit
-def batchnorm2d_kernel(input: cuda.devicearray.DeviceNDArray,
-                       output: cuda.devicearray.DeviceNDArray,
-                       mean: cuda.devicearray.DeviceNDArray,
-                       var: cuda.devicearray.DeviceNDArray,
-                       eps: float,
-                       gamma: cuda.devicearray.DeviceNDArray,
-                       beta: cuda.devicearray.DeviceNDArray):
+def batchnorm2d_kernel(input, output, mean, var, eps, gamma, beta):
     """
     A CUDA kernel that performs batch normalization on a 4D tensor.
 
     Args:
-        input (cuda.devicearray.DeviceNDArray): The input tensor.
-        output (cuda.devicearray.DeviceNDArray): The output tensor.
-        mean (cuda.devicearray.DeviceNDArray): The mean of the input tensor.
-        var (cuda.devicearray.DeviceNDArray): The variance of the input tensor.
+        input: The input tensor.
+        output: The output tensor.
+        mean: The mean of the input tensor.
+        var: The variance of the input tensor.
         eps (float): A small value added to the denominator for numerical stability.
-        gamma (cuda.devicearray.DeviceNDArray): The scaling factor.
-        beta (cuda.devicearray.DeviceNDArray): The shifting factor.
+        gamma: The scaling factor.
+        beta: The shifting factor.
     """
     idx, out_h, out_w = cuda.grid(3)
 

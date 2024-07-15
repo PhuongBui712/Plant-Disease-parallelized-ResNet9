@@ -8,18 +8,14 @@ from torch import nn
 
 
 @cuda.jit
-def conv2d_kernel(input: cuda.devicearray.DeviceNDArray,
-                  kernel: cuda.devicearray.DeviceNDArray,
-                  output: cuda.devicearray.DeviceNDArray,
-                  padding: int,
-                  stride: int):
+def conv2d_kernel(input, kernel, output, padding: int, stride: int):
     """
     Performs a 2D convolution operation on a 4D tensor.
 
     Args:
-        input (cuda.devicearray.DeviceNDArray): The input tensor.
-        kernel (cuda.devicearray.DeviceNDArray): The convolution kernel.
-        output (cuda.devicearray.DeviceNDArray): The output tensor.
+        input: The input tensor.
+        kernel: The convolution kernel.
+        output: The output tensor.
         padding (int): The amount of padding to apply.
         stride (int): The stride of the convolution operation.
     """
