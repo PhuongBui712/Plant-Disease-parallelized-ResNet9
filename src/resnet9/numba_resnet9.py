@@ -39,7 +39,7 @@ class NumbaConvBlock(nn.Module):
         self.conv = nn.Sequential(
             NumbaConv2d(in_channels, out_channels, kernel_size=kernel, stride=stride, padding=padding),
             NumbaBatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            NumbaReLU(inplace=True)
         )
 
         if pooling:
