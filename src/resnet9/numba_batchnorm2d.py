@@ -55,7 +55,7 @@ class NumbaBatchNorm2d(nn.Module):
                  eps: float = 1e-05,
                  momentum: float = 0.1,
                  affine: bool = True,
-                 track_running_stats: bool = True,) -> None:
+                 track_running_stats: bool = True) -> None:
         super().__init__()
 
         self.eps = eps
@@ -70,25 +70,32 @@ class NumbaBatchNorm2d(nn.Module):
             self.register_parameter('beta', None)
 
         if self.track_running_stats:
-            self.running_mean = 0
-            self.running_var = 1
+            self.register_buffer('running_mean', torch.zeros(num_features))
+            self.register_buffer('running_var', torch.ones(num_features))
+        else:
+            self.register_buffer('running_mean', None)
+            self.register_buffer('running_var', None)
+        
         
     def forward(self, x: Tensor):
         assert x.is_cuda, "Input must be a CUDA tensor"
         assert x.dim() == 4, "Input must be a 4D tensor"
 
         if self.training:
-            mean = torch.mean(x, dim=(0, 2, 3)) # calculate mean over batch
-            var = torch.var(x, dim=(0, 2, 3), unbiased=False) # calculate variance over batch
-
             # update running estimations
             if self.track_running_stats:
-                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * x.mean(dim=(0, 2, 3)) 
                 self.running_var = (1- self.momentum) * self.running_var + self.momentum * x.var(dim=(0, 2, 3), unbiased=True)
 
+            mean = x.mean(dim=(0, 2, 3)) # calculate mean over batch
+            var = x.var(dim=(0, 2, 3), unbiased=False) # calculate variance over batch
         else:
-            mean = self.running_mean
-            var = self.running_var
+            if self.track_running_stats:
+                mean = self.running_mean
+                var = self.running_var
+            else:
+                mean = x.mean(dim=(0, 2, 3))
+                var = x.var(dim=(0, 2, 3), unbiased=False)
 
         output = torch.zeros(x.shape, device=x.device)
         
@@ -100,7 +107,7 @@ class NumbaBatchNorm2d(nn.Module):
         )
 
         batchnorm2d_kernel[blocks_per_grid, threads_per_block](
-            x.detach(), output, mean, var, self.eps, self.gamma.detach(), self.beta.detach()
+            x.detach(), output, mean.detach(), var.detach(), self.eps, self.gamma.detach(), self.beta.detach()
         )
 
         return output
