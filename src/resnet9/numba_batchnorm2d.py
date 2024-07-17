@@ -87,8 +87,8 @@ class NumbaBatchNorm2d(nn.Module):
                 self.running_var = (1- self.momentum) * self.running_var + self.momentum * x.var(dim=(0, 2, 3), unbiased=True)
 
         else:
-            mean = self.running_mean.view((1, self.running_mean[0], 1, 1))
-            var = self.running_var.view((1, self.running_var[0], 1, 1))
+            mean = self.running_mean
+            var = self.running_var
 
         output = torch.zeros(x.shape, device=x.device)
         
