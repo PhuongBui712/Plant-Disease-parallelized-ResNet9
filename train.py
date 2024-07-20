@@ -76,6 +76,8 @@ def train():
             if batch_count // STEP_PER_LOG == num_log or i == len(train_dataloader) - 1:
                 logging_dict['epoch'] = batch_count / len(train_dataloader)
                 wandb.log({f'train/{k}': v for k, v in logging_dict.items()}, step=batch_count)
+
+                num_log += 1
                 
         # Evaluate
         model.eval()
