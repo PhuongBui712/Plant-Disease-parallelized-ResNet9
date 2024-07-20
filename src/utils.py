@@ -1,5 +1,6 @@
 import wandb
 from dotenv import load_dotenv
+from torch.optim import Optimizer
 
 
 load_dotenv()
@@ -26,3 +27,16 @@ def setup_wandb(project_name: str, run_name: str, batch_size: int, epoch: int):
         },
     )
     
+
+def get_lr(optimizer: Optimizer):
+    """
+    Returns the learning rate of the optimizer.
+
+    Args:
+        optimizer (Optimizer): The optimizer to get the learning rate from.
+
+    Returns:
+        float: The learning rate of the optimizer.
+    """
+    for param_group in optimizer.param_groups:
+        return param_group['lr']

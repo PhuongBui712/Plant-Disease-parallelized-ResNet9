@@ -3,15 +3,21 @@ from tqdm import tqdm
 import torch
 from torch import nn
 from torch import optim
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from src.dataset import PlantDiseaseDataset
 from src.resnet9.numba_resnet9 import NumbaResNet9
-from src.utils import setup_wandb
+from src.utils import *
 from src.metrics import accuracy
 
 
-def train():
+def train(batch_size: int,
+          epochs: int,
+          max_lr: float,
+          weight_decay: float,
+          grad_clip: float,
+          optimizer: Optimizer):
     device = 'cuda:0'
 
     # Load data
@@ -20,8 +26,6 @@ def train():
     train_dataset = PlantDiseaseDataset(data_path + 'train')
     val_dataset = PlantDiseaseDataset(data_path + 'valid')
 
-    batch_size = 128
-    epochs = 10
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
@@ -30,10 +34,14 @@ def train():
     model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
 
-    # Loss and optimizer
+    # Loss, optimizer, and learning rate scheduler
     criterion = nn.CrossEntropyLoss().cuda()
 
-    optimizer = optim.AdamW(params=model.parameters(), lr=1e-5)
+    optimizer = optim.AdamW(model.parameters(), max_lr, weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.OneCycleLR(optimizer,
+                                            max_lr,
+                                            epochs=epochs,
+                                            steps_per_epoch=len(train_dataloader))
 
     # experiment monitor
     setup_wandb(project_name='Plant Diease Identification',
@@ -48,19 +56,32 @@ def train():
 
     for epoch in range(epochs):
         train_running_loss, train_acc = 0.0, 0.0
+        logging_dict = {}
         
         # Train
-        model.train()
-        train_loop = tqdm(train_dataloader, desc=f'Training Epoch {epoch + 1}', leave=True)
+        model.train() 
+        
+        print(f'Epoch {epoch + 1}/{epochs}')
+        train_loop = tqdm(train_dataloader, desc=f'{"Train":^7}', leave=True)
         for i, data in enumerate(train_loop):
+            # load data to cuda
             X, y = (_.cuda() for _ in data)
             
+            # compute y_pred
             y_pred = model(X)
             
+            # loss
             loss = criterion(y_pred, y)
             loss.backward()
+            
+            ## gradient clipping
+            nn.utils.clip_grad_value_(model.parameters(), grad_clip)
+            
             optimizer.step()
             optimizer.zero_grad()
+            
+            # update lr
+            scheduler.step()
             
             # update loss
             train_running_loss += loss.item()
@@ -76,14 +97,16 @@ def train():
             batch_count += 1
             if batch_count // STEP_PER_LOG == num_log or i == len(train_dataloader) - 1:
                 logging_dict['epoch'] = batch_count / len(train_dataloader)
+                logging_dict['learning rate'] = get_lr(optimizer)
+                
                 wandb.log({f'train/{k}': v for k, v in logging_dict.items()}, step=batch_count)
-
+                
                 num_log += 1
                 
         # Evaluate
         model.eval()
         val_running_loss, val_acc = 0.0, 0.0
-        val_loop = tqdm(val_dataloader, desc='Validation', leave=True)
+        val_loop = tqdm(val_dataloader, desc=f"{'Eval':^7}", leave=True)
         for i, data in enumerate(val_loop):
             X, y = (_.to(device) for _ in data)
 
