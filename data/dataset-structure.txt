@@ -1,0 +1,10 @@
+This dataset is downloaded from https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset.
+
+This dataset is organized into three folders: train, valid, and test. Each folder contains images of different plant diseases. The dataset organization is represented like following:
+
+data/
+└── New-Plant-Diseases-Dataset/
+    ├── test/
+    ├── train/
+    └── valid/
+    
