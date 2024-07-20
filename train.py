@@ -50,6 +50,7 @@ def train():
         train_running_loss, train_acc = 0.0, 0.0
         
         # Train
+        model.train()
         train_loop = tqdm(train_dataloader, desc=f'Training Epoch {epoch + 1}', leave=True)
         for i, data in enumerate(train_loop):
             X, y = (_.cuda() for _ in data)
