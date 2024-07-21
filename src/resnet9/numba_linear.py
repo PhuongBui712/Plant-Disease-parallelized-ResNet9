@@ -1,8 +1,11 @@
 import math
 from numba import cuda, float32
+from typing import Optional, Tuple
 
 import torch
+from torch import Tensor
 from torch import nn
+from torch.autograd import Function
 
 TPB = 32
 
@@ -16,8 +19,6 @@ def linear_kernel(input, output, weight):
         output: The output matrix.
         weight: The weight matrix.
     """
-    # Define an array in the shared memory
-    # The size and type of the arrays must be known at compile time
     sA = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
     sB = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
 
@@ -25,32 +26,66 @@ def linear_kernel(input, output, weight):
 
     tx = cuda.threadIdx.x
     ty = cuda.threadIdx.y
-    bpg = cuda.gridDim.x    # blocks per grid
+    bpg = cuda.gridDim.x
 
-    # Each thread computes one element in the result matrix.
-    # The dot product is chunked into dot products of TPB-long vectors.
-    tmp = float32(0.)
+    tmp = 0.0
     for i in range(bpg):
-        # Preload data into shared memory
         sA[ty, tx] = 0
         sB[ty, tx] = 0
         if y < input.shape[0] and (tx+i*TPB) < input.shape[1]:
-          sA[ty, tx] = input[y, tx + i * TPB]
+            sA[ty, tx] = input[y, tx + i * TPB]
         if x < weight.shape[1] and (ty+i*TPB) < weight.shape[0]:
-          sB[ty, tx] = weight[ty + i * TPB, x]
+            sB[ty, tx] = weight[ty + i * TPB, x]
 
-        # Wait until all threads finish preloading
         cuda.syncthreads()
 
-        # Computes partial product on the shared memory
         for j in range(TPB):
             tmp += sA[ty, j] * sB[j, tx]
 
-        # Wait until all threads finish computing
         cuda.syncthreads()
     if y < output.shape[0] and x < output.shape[1]:
         output[y, x] = tmp
+
+
+class NumbaLinearFunction(Function):
+    @staticmethod
+    def forward(ctx, input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Tensor:
+        ctx.save_for_backward(input, weight, bias)
         
+        output = torch.empty(input.size(0), weight.size(0), device=input.device)
+        
+        threads_per_block = (TPB, TPB)
+        grid_y_max = max(input.shape[0], weight.shape[0])
+        grid_x_max = max(input.shape[1], weight.shape[1])
+
+        blocks_per_grid_x = math.ceil(grid_x_max / threads_per_block[0])
+        blocks_per_grid_y = math.ceil(grid_y_max / threads_per_block[1])
+
+        blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
+        
+        linear_kernel[blocks_per_grid, threads_per_block](
+            input.detach(), output, weight.detach().T
+        )
+        
+        if bias is not None:
+            output += bias.unsqueeze(0).expand_as(output)
+        
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output: Tensor) -> Tuple[Optional[Tensor], Optional[Tensor], Optional[Tensor]]:
+        input, weight, bias = ctx.saved_tensors
+        grad_input = grad_weight = grad_bias = None
+
+        if ctx.needs_input_grad[0]:
+            grad_input = grad_output.mm(weight)
+        if ctx.needs_input_grad[1]:
+            grad_weight = grad_output.t().mm(input)
+        if bias is not None and ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum(0)
+
+        return grad_input, grad_weight, grad_bias
+
 
 class NumbaLinear(nn.Module):
     """
@@ -69,53 +104,34 @@ class NumbaLinear(nn.Module):
     def __init__(self,
                  in_features: int,
                  out_features: int,
-                 bias: bool = True,
-                 custom_weight = None,
-                 custom_bias = None) -> None:
+                 bias: bool = True) -> None:
         super().__init__()
-
-        bound = math.sqrt(1.0 / in_features)
-        self.weight = nn.Parameter(torch.rand(size=(out_features, in_features)) * 2 * bound - bound)
+        self.in_features = in_features
+        self.out_features = out_features
+        
+        self.weight = nn.Parameter(torch.empty(out_features, in_features))
         if bias:
-            self.bias = nn.Parameter(torch.rand(out_features) * 2 * bound - bound)
+            self.bias = nn.Parameter(torch.empty(out_features))
         else:
             self.register_parameter('bias', None)
-            
-        if custom_weight is not None:
-            self.weight = custom_weight
-        if custom_bias is not None:
-            self.bias = custom_bias
-
-    def forward(self, x):
-        assert x.is_cuda, "Input must be a CUDA tensor"
-        assert self.weight.is_cuda, "Weights must be CUDA tensors"
-        assert self.bias is None or self.bias.is_cuda, "Bias must be a CUDA tensor if it exists"
-
-        original_shape = x.shape
-        detached_x = x.detach()
-        if x.dim() > 2:
-            detached_x = detached_x.flatten(0, -2)
-
-        output = torch.empty(detached_x.size(0), self.weight.shape[0], device=x.device)
         
-        threads_per_block = (TPB, TPB)
-        grid_y_max = max(detached_x.shape[0], self.weight.shape[0])
-        grid_x_max = max(detached_x.shape[1], self.weight.shape[1])
+        self._reset_parameters()
 
-        blocks_per_grid_x = math.ceil(grid_x_max / threads_per_block[0])
-        blocks_per_grid_y = math.ceil(grid_y_max / threads_per_block[1])
+    def _reset_parameters(self):
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            nn.init.uniform_(self.bias, -bound, bound)
 
-        blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
-        linear_kernel[blocks_per_grid, threads_per_block](
-            detached_x, output, self.weight.detach().T
+    def forward(self, x: Tensor):
+        return NumbaLinearFunction.apply(x, self.weight, self.bias)
+
+    def extra_repr(self) -> str:
+        return 'in_features={}, out_features={}, bias={}'.format(
+            self.in_features, self.out_features, self.bias is not None
         )
 
-        if self.bias is not None:
-            output += self.bias
-        
-        output = output.view(*original_shape[:-1], output.shape[-1])
-        return output
-    
 
 if __name__ == '__main__':
     input_tensor1 = torch.randint(0, 256, (16, 3, 256, 256), dtype=torch.float32).cuda()
