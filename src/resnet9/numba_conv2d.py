@@ -1,6 +1,6 @@
 import math
 from numba import cuda
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -42,7 +42,7 @@ def conv2d_kernel(input, kernel, output, padding: int, stride: int):
 
 class Conv2dFunction(Function):
     @staticmethod
-    def forward(ctx, input, weight, bias, stride, padding):
+    def forward(ctx, input: Tensor, weight: Tensor, bias: Optional[Tensor], stride: int, padding: int) -> Tensor:
         ctx.save_for_backward(input, weight, bias)
         ctx.stride = stride
         ctx.padding = padding
@@ -71,7 +71,7 @@ class Conv2dFunction(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output: Tensor) -> Tuple[Optional[Tensor], Optional[Tensor], Optional[Tensor], None, None]:
         input, weight, bias = ctx.saved_tensors
         stride = ctx.stride
         padding = ctx.padding
@@ -112,7 +112,14 @@ class NumbaConv2d(nn.Module):
         >>> output_tensor = conv(input_tensor)
     """
     
-    def __init__(self, in_channels, out_channels, kernel_size, padding=0, stride=1, bias=True):
+    def __init__(self, 
+                 in_channels: int, 
+                 out_channels: int,
+                 kernel_size: int,
+                 padding=0,
+                 stride=1,
+                 bias=True):
+        
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -126,7 +133,7 @@ class NumbaConv2d(nn.Module):
         else:
             self.register_parameter('bias', None)
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         return Conv2dFunction.apply(x, self.weight, self.bias, self.stride, self.padding)
 
 
