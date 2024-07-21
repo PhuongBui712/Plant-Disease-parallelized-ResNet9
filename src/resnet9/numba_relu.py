@@ -4,6 +4,7 @@ from numba import cuda
 import torch
 from torch import Tensor
 from torch import nn
+from torch.autograd import Function
 
 
 @cuda.jit
@@ -17,9 +18,29 @@ def relu_kernel(input, output, dim: int):
         dim (int): The total number of elements in the input and output arrays.
     """
     idx = cuda.grid(1)
-
     if idx < dim:
         output[idx] = max(input[idx], 0)
+
+
+class NumbaReLUFunction(Function):
+    @staticmethod
+    def forward(ctx, input: Tensor) -> Tensor:
+        output = torch.zeros_like(input)
+        threads_per_block = 256
+        dim = input.numel()
+        blocks_per_grid = math.ceil(dim / threads_per_block)
+        
+        relu_kernel[blocks_per_grid, threads_per_block](input.detach().view(-1), output.view(-1), dim)
+        
+        ctx.save_for_backward(input)
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output: Tensor) -> Tensor:
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        grad_input[input < 0] = 0
+        return grad_input
 
 
 class NumbaReLU(nn.Module):
@@ -42,22 +63,9 @@ class NumbaReLU(nn.Module):
         super().__init__()
         self.inplace = inplace
 
-    def forward(self, x):
-        assert x.is_cuda, "Input must be a CUDA tensor"
+    def forward(self, x: Tensor):
+        return NumbaReLUFunction.apply(x)
 
-        detached_x = x.detach().view(-1)
-
-        output = torch.zeros(x.shape, device=x.device).view(-1)
-
-        threads_per_block = 256
-        dim = torch.prod(output.shape).item()
-        blocks_per_grid = math.ceil(dim / threads_per_block)
-
-        relu_kernel[blocks_per_grid, threads_per_block](x.detach(), output, dim)
-
-        output = output.view(x.shape)
-        return output
-    
 
 if __name__ == '__main__':
     numba_relu = NumbaReLU().cuda()

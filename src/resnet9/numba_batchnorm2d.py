@@ -1,6 +1,6 @@
 import math
 from numba import cuda
-from typing import Optional
+from typing import Optional, Tuple
 import torch
 from torch import Tensor
 from torch import nn
@@ -34,8 +34,15 @@ def batchnorm2d_forward_kernel(input, output, mean, inv_std, gamma, beta):
 
 class NumbaBatchNorm2dFunction(Function):
     @staticmethod
-    @staticmethod
-    def forward(ctx, input: Tensor, gamma: Tensor, beta: Tensor, running_mean: Optional[Tensor], running_var: Optional[Tensor], eps: float, momentum: float, training: bool) -> Tensor:
+    def forward(ctx,
+                input: Tensor,
+                gamma: Tensor, 
+                beta: Tensor, 
+                running_mean: Optional[Tensor], 
+                running_var: Optional[Tensor], 
+                eps: float, 
+                momentum: float, 
+                training: bool) -> Tensor:
         input = input.contiguous()
         
         if training:
@@ -68,7 +75,7 @@ class NumbaBatchNorm2dFunction(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output: Tensor) -> Tuple[Optional[Tensor], Optional[Tensor], Optional[Tensor], None, None, None, None, None]:
         input, gamma, mean, inv_std = ctx.saved_tensors
         
         # Use PyTorch's built-in backward pass for simplicity and correctness
