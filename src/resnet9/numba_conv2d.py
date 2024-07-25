@@ -141,13 +141,14 @@ if __name__ == '__main__':
     # Testing by compare the output with torch conv2d module
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    input_tensor = torch.randn(16, 3, 512, 512, device=device, requires_grad=True)
+    input_tensor = torch.randn(16, 3, 512, 512).cuda()
 
-    torch_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,).to(device)
+    torch_conv = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,).cuda()
     torch_output = torch_conv(input_tensor)
 
-    numba_conv = NumbaConv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2,
-                             weight=torch_conv.weight, bias=torch_conv.bias).to(device)
+    numba_conv = NumbaConv2d(in_channels=3, out_channels=64, kernel_size=3, padding=2, stride=2).cuda()
+    numba_conv.weight.data.copy_(torch_conv.weight)
+    numba_conv.bias.data.copy_(torch_conv.bias)
     numba_output = numba_conv(input_tensor)
 
     assert ((torch_output - numba_output) < 1e-5).all().item(), "Numba Conv2D output does not match PyTorch Conv2D output"
