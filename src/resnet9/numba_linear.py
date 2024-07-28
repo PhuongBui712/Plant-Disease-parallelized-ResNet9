@@ -137,7 +137,10 @@ if __name__ == '__main__':
     input_tensor1 = torch.randint(0, 256, (16, 3, 256, 256), dtype=torch.float32).cuda()
 
     torch_linear = nn.Linear(256, 512, dtype=torch.float32).cuda()
-    numba_linear = NumbaLinear(256, 512, custom_weight=torch_linear.weight, custom_bias=torch_linear.bias).cuda()
+    
+    numba_linear = NumbaLinear(256, 512).cuda()
+    numba_linear.weight.data.copy_(torch_linear.weight)
+    numba_linear.bias.data.copy_(torch_linear.bias)
 
     numba_output = numba_linear(input_tensor1)
     torch_output = torch_linear(input_tensor1)
