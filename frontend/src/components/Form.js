@@ -149,7 +149,7 @@ const Form = ({ setImage, setIsPending, setUrl, setColor, setError, setPredict, 
   return (
     <div className="flex flex-col min-h-[50vh] sm:drop-shadow-2xl w-full py-16 sm:px-16 sm:py-10 justify-between bg-white mx-4 sm:mx-0 sm:w-4/6 md:w-3/5 lg:w-fit rounded-3xl">
       <p className="text-center font-semibold text-[1.375rem] sm:text-3xl mt-4 sm:mt-0 mb-4 uppercase text-[#8BC541]">
-        garbage classification
+        plant disease classification
       </p>
       <p className="text-center font-thin text-xs text-slate-400 mb-2">File should be Jpeg , Png...</p>
       <div
@@ -174,24 +174,6 @@ const Form = ({ setImage, setIsPending, setUrl, setColor, setError, setPredict, 
       >
         Choose a file
       </button>
-      <button
-        onClick={toggleCamera}
-        className="bg-lime-400/40 text-slate-600 font-medium p-1 mt-4 mb-2 rounded-full w-auto mx-auto px-4 py-2 text-md hover:bg-lime-600/75 hover:text-white transition-all duration-300"
-      >
-        <img src={camera} className="w-6" />
-      </button>
-      {isCameraActive && (
-        <Camera
-          onTakePhoto={(dataUri) => {
-            handleTakePhoto(dataUri);
-          }}
-          isFullscreen={false}
-          isImageMirror={true}
-          idealResolution={{ width: 512, height: 384 }}
-          isMaxResolution={false}
-          sizeFactor={1}
-        />
-      )}
     </div>
   );
 };

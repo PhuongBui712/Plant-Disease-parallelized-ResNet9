@@ -6,14 +6,8 @@ const Uploaded = ({ image, predict, advice, color, TrashBinImage }) => {
   };
   return (
     <>
-      <div className="fixed left-0 top-1/2 -translate-y-1/2 sm:drop-shadow-lg gap-6 py-16 items-center justify-center w-2/5 mx-4 bg-white md:w-3/5 rounded-3xl transition-all duration-500 transform translate-x- sm:translate-x-40 hidden sm:block">
-        <div className="flex items-center">
-          <img src={TrashBinImage} alt="Trash Bin" className="h-16" />
-          <p className={`ml-0 uppercase text font-bold ${color}`}>{predict}</p>
-        </div>
-      </div>
       <div className="flex flex-col sm:drop-shadow-lg gap-6 py-16 items-center justify-center w-full mx-4 bg-white md:w-1/2 rounded-3xl">
-        <p className="text-center font-semibold text-2xl uppercase text-[#8BC541]">garbage classification</p>
+        <p className="text-center font-semibold text-2xl uppercase text-[#8BC541]">plant disease classification</p>
         <div>
           <img src={image} className="max-w-full mx-auto h-[28vh] sm:h-[28vh] rounded-3xl" />
         </div>
