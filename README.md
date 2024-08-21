@@ -2,11 +2,11 @@
 
 ## Team Members
 
-| Name | ID | 
-|---|---|
-| Trần Quốc Trung | 20127655 | 
-| Bùi Tấn Phương | 20127597 |
-| Trần Minh Hiệp | 20127023 | 
+| Name | ID | Done |
+|---|---|---|
+| Trần Quốc Trung | 20127655 | 100% | 
+| Bùi Tấn Phương | 20127597 |100% | 
+| Trần Minh Hiệp | 20127023 | 100% | 
 
 ## Overview of the Problem
 
