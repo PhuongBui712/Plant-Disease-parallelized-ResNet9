@@ -38,7 +38,8 @@ Our solution involved parallelizing the ResNet-9 model to leverage the computati
 - **Scalability**: The model scaled efficiently across multiple GPUs, achieving near-linear speedup as more computational resources were added.
 - **Accuracy in Disease Detection**: The accuracy of the parallelized ResNet-9 model in detecting plant diseases was comparable to that of the original implementation, with no significant degradation observed.
 - **Web Application**
-
+![](/frontend/form.png)
+![](/frontend/result.png)
 ### Challenges
 
 - **Synchronization Overhead**: Managing synchronization across multiple GPUs introduced overhead, which we mitigated by optimizing communication patterns and using efficient gradient averaging techniques.
