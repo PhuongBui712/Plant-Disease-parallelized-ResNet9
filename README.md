@@ -2,11 +2,11 @@
 
 ## Team Members
 
-| Name | ID | Done |
-|---|---|---|
-| Trần Quốc Trung | 20127655 | 100% | 
-| Bùi Tấn Phương | 20127597 |100% | 
-| Trần Minh Hiệp | 20127023 | 100% | 
+| Name | ID | Task |Done |
+|---|---|---|---|
+| Trần Quốc Trung | 20127655 | Develop Parallel Algorithm | 100%|
+| Bùi Tấn Phương | 20127597 | Support Develop Parallel Algorithm And Evaluation | 100%|
+| Trần Minh Hiệp | 20127023 | Support Develop Parallel Algorithm And Build WebSite | 100%|
 
 ## Overview of the Problem
 
